@@ -21,6 +21,10 @@ Nov 12, 2020
 -HTML code edited
 -Code hygeine
 
+Nov 13, 2020
+-Script will exit it VMware PowerCLI failed to install
+-Script will exit if PowerShell is not version 5 or above
+
 .DESCRIPTION
 Author oreynolds@gmail.com
 
@@ -47,6 +51,15 @@ IF (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 
 }
 
+if (-not(($PSversionTable.PSVersion).Major -ge 5)) {
+
+    write-warning "Powershell version 5 or above is required to run this script"
+    write-warning "Please download/install from here https://www.microsoft.com/en-us/download/details.aspx?id=54616"
+    write-warning "The script will now exit"
+    EXIT
+
+}
+
 IF (-not(Get-PackageProvider -ListAvailable -name NUget)) {
 
     Install-PackageProvider -Name NuGet -force -Confirm:$False
@@ -57,6 +70,13 @@ IF (-not(Get-Module -ListAvailable -name VMware.PowerCLI)) {
     Install-Module -Name VMware.PowerCLI -AllowClobber -force
 }
 
+IF (-not(Get-Module -ListAvailable -name VMware.PowerCLI)) {
+
+    write-warning "PowerCLI failed to install. The script will exit"
+    EXIT
+}
+
+Set-PowerCLIConfiguration -InvalidCertificateAction Ignore -Confirm:$false
 
 IF ($global:DefaultVIServer.Length -eq 0) {
 
