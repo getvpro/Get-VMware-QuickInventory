@@ -25,6 +25,13 @@ Nov 13, 2020
 -Script will exit it VMware PowerCLI failed to install
 -Script will exit if PowerShell is not version 5 or above
 
+Nov 17, 2020
+-Connect-ViServer code changed
+-Hardware collection info changed
+-Color coding added for NTP section
+-Added CPU Ready Time
+-Added DNS servers set on ESXihost
+
 .DESCRIPTION
 Author oreynolds@gmail.com
 
@@ -42,47 +49,6 @@ N/A
 
 ### Variables & functions
 
-### Install Nuget and VMware PowerCLI as required
-
-IF (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-
-    write-warning "Please open Powershell as administrator, the script will now exit"
-    EXIT
-
-}
-
-if (-not(($PSversionTable.PSVersion).Major -ge 5)) {
-
-    write-warning "Powershell version 5 or above is required to run this script"
-    write-warning "Please download/install from here https://www.microsoft.com/en-us/download/details.aspx?id=54616"
-    write-warning "The script will now exit"
-    EXIT
-
-}
-
-IF (-not(Get-PackageProvider -ListAvailable -name NUget)) {
-
-    Install-PackageProvider -Name NuGet -force -Confirm:$False
-}
-
-IF (-not(Get-Module -ListAvailable -name VMware.PowerCLI)) {
-
-    Install-Module -Name VMware.PowerCLI -AllowClobber -force
-}
-
-IF (-not(Get-Module -ListAvailable -name VMware.PowerCLI)) {
-
-    write-warning "PowerCLI failed to install. The script will exit"
-    EXIT
-}
-
-Set-PowerCLIConfiguration -InvalidCertificateAction Ignore -Confirm:$false
-
-IF ($global:DefaultVIServer.Length -eq 0) {
-
-    Connect-VIServer
-
-}
 
 $ShortDate = (Get-Date).ToString('MM-dd-yyyy')
 $LogTimeStamp = (Get-Date).ToString('MM-dd-yyyy-hhmm-tt')
@@ -142,20 +108,147 @@ $Head = @"
         font-size: 12px;
 
     }
-    
+
+    .RunningStatus {
+    color: #008000;
+    }
 
 
+    .REDStatus {
+    color: #ff0000;
+    }
 
 </style>
 "@
-
-
 
 ### header
 $ReportTitle = "<h1>VMware quick environmental report for $($env:USERDNSDOMAIN)"
 $ReportTitle += "<h2>Data is from $($LogTimeStamp)</h2>"
 $ReportTitle += "<hr></hr>"
-#$ReportTitle += "<br><br>"
+
+function Get-ESXiReady {  
+   <#  
+   http://kunaludapi.blogspot.com/2015/01/powercli-cpu-ready-and-usage-from.html
+   #>  
+   [CmdletBinding()]  
+   param(  
+   [Parameter(Mandatory=$true,ValueFromPipeline=$True,ValueFromPipelineByPropertyName=$true)]  
+   [String]$Name) #param   
+     $Stattypes = "cpu.usage.average", "cpu.usagemhz.average", "cpu.ready.summation"  
+     foreach ($esxi in $(Get-VMHost $Name)) {  
+       $vmlist = $esxi | Get-VM | Where-Object {$_.PowerState -eq "PoweredOn"}  
+       $esxiCPUSockets = $esxi.ExtensionData.Summary.Hardware.NumCpuPkgs   
+       $esxiCPUcores = $esxi.ExtensionData.Summary.Hardware.NumCpuCores/$esxiCPUSockets  
+       $TotalesxiCPUs = $esxiCPUSockets * $esxiCPUcores  
+       foreach ($vm in $vmlist) {  
+         $VMCPUNumCpu = $vm.NumCpu  
+         $VMCPUCores = $vm.ExtensionData.config.hardware.NumCoresPerSocket  
+         $VMCPUSockets = $VMCPUNumCpu / $VMCPUCores  
+         $GroupedRealTimestats = Get-Stat -Entity $vm -Stat $Stattypes -Realtime -Instance "" -ErrorAction SilentlyContinue | Group-Object MetricId  
+         $RealTimeCPUAverageStat = "{0:N2}" -f $($GroupedRealTimestats | Where {$_.Name -eq "cpu.usage.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
+         $RealTimeCPUUsageMhzStat = "{0:N2}" -f $($GroupedRealTimestats | Where {$_.Name -eq "cpu.usagemhz.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
+         $RealTimeReadystat = $GroupedRealTimestats | Where {$_.Name -eq "cpu.ready.summation"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average  
+         $RealTimereadyvalue = [math]::Round($(($RealTimeReadystat / (20 * 1000)) * 100), 2)  
+         $Groupeddaystats = Get-Stat -Entity $vm -Stat $Stattypes -Start (get-date).AddDays(-1) -Finish (get-date) -IntervalMins 5 -Instance "" -ErrorAction SilentlyContinue | Group-Object MetricId  
+         $dayCPUAverageStat = "{0:N2}" -f $($Groupeddaystats | Where {$_.Name -eq "cpu.usage.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
+         $dayCPUUsageMhzStat = "{0:N2}" -f $($Groupeddaystats | Where {$_.Name -eq "cpu.usagemhz.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
+         $dayReadystat = $Groupeddaystats | Where {$_.Name -eq "cpu.ready.summation"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average  
+         $dayreadyvalue = [math]::Round($(($dayReadystat / (300 * 1000)) * 100), 2)  
+         $Groupedweekstats = Get-Stat -Entity $vm -Stat $Stattypes -Start (get-date).AddDays(-7) -Finish (get-date) -IntervalMins 30 -Instance "" -ErrorAction SilentlyContinue | Group-Object MetricId  
+         $weekCPUAverageStat = "{0:N2}" -f $($Groupedweekstats | Where {$_.Name -eq "cpu.usage.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
+         $weekCPUUsageMhzStat = "{0:N2}" -f $($Groupedweekstats | Where {$_.Name -eq "cpu.usagemhz.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
+         $weekReadystat = $Groupedweekstats | Where {$_.Name -eq "cpu.ready.summation"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average  
+         $weekreadyvalue = [math]::Round($(($weekReadystat / (1800 * 1000)) * 100), 2)  
+         $Groupedmonthstats = Get-Stat -Entity $vm -Stat $Stattypes -Start (get-date).AddDays(-30) -Finish (get-date) -IntervalMins 120 -Instance "" -ErrorAction SilentlyContinue | Group-Object MetricId  
+         $monthCPUAverageStat = "{0:N2}" -f $($Groupedmonthstats | Where {$_.Name -eq "cpu.usage.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
+         $monthCPUUsageMhzStat = "{0:N2}" -f $($Groupedmonthstats | Where {$_.Name -eq "cpu.usagemhz.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
+         $monthReadystat = $Groupedmonthstats | Where {$_.Name -eq "cpu.ready.summation"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average  
+         $monthreadyvalue = [math]::Round($(($monthReadystat / (7200 * 1000)) * 100), 2)        
+         $Groupedyearstats = Get-Stat -Entity $vm -Stat $Stattypes -Start (get-date).AddDays(-365) -Finish (get-date) -IntervalMins 1440 -Instance "" -ErrorAction SilentlyContinue | Group-Object MetricId  
+         $yearCPUAverageStat = "{0:N2}" -f $($Groupedyearstats | Where {$_.Name -eq "cpu.usage.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
+         $yearCPUUsageMhzStat = "{0:N2}" -f $($Groupedyearstats | Where {$_.Name -eq "cpu.usagemhz.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
+         $yearReadystat = $Groupedyearstats | Where {$_.Name -eq "cpu.ready.summation"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average  
+         $yearreadyvalue = [math]::Round($(($yearReadystat / (86400 * 1000)) * 100), 2)    
+         $data = New-Object psobject  
+         $data | Add-Member -MemberType NoteProperty -Name VM -Value $vm.name  
+         $data | Add-Member -MemberType NoteProperty -Name VMTotalCPUs -Value $VMCPUNumCpu   
+         $data | Add-Member -MemberType NoteProperty -Name VMTotalCPUSockets -Value $VMCPUSockets  
+         $data | Add-Member -MemberType NoteProperty -Name VMTotalCPUCores -Value $VMCPUCores  
+         $data | Add-Member -MemberType NoteProperty -Name "RealTime Usage Average%" -Value $RealTimeCPUAverageStat  
+         $data | Add-Member -MemberType NoteProperty -Name "RealTime Usage Mhz" -Value $RealTimeCPUUsageMhzStat  
+         $data | Add-Member -MemberType NoteProperty -Name "RealTime Ready%" -Value $RealTimereadyvalue  
+         $data | Add-Member -MemberType NoteProperty -Name "Day Usage Average%" -Value $dayCPUAverageStat  
+         $data | Add-Member -MemberType NoteProperty -Name "Day Usage Mhz" -Value $dayCPUUsageMhzStat  
+         $data | Add-Member -MemberType NoteProperty -Name "Day Ready%" -Value $dayreadyvalue  
+         $data | Add-Member -MemberType NoteProperty -Name "week Usage Average%" -Value $weekCPUAverageStat  
+         $data | Add-Member -MemberType NoteProperty -Name "week Usage Mhz" -Value $weekCPUUsageMhzStat  
+         $data | Add-Member -MemberType NoteProperty -Name "week Ready%" -Value $weekreadyvalue  
+         $data | Add-Member -MemberType NoteProperty -Name "month Usage Average%" -Value $monthCPUAverageStat  
+         $data | Add-Member -MemberType NoteProperty -Name "month Usage Mhz" -Value $monthCPUUsageMhzStat  
+         $data | Add-Member -MemberType NoteProperty -Name "month Ready%" -Value $monthreadyvalue  
+         $data | Add-Member -MemberType NoteProperty -Name "Year Usage Average%" -Value $yearCPUAverageStat  
+         $data | Add-Member -MemberType NoteProperty -Name "Year Usage Mhz" -Value $yearCPUUsageMhzStat  
+         $data | Add-Member -MemberType NoteProperty -Name "Year Ready%" -Value $yearreadyvalue  
+         $data | Add-Member -MemberType NoteProperty -Name VMHost -Value $esxi.name  
+         $data | Add-Member -MemberType NoteProperty -Name VMHostCPUSockets -Value $esxiCPUSockets  
+         $data | Add-Member -MemberType NoteProperty -Name VMHostCPUCores -Value $esxiCPUCores  
+         $data | Add-Member -MemberType NoteProperty -Name TotalVMhostCPUs -Value $TotalesxiCPUs  
+         $data  
+       } #foreach ($vm in $vmlist)  
+     }#foreach ($esxi in $(Get-VMHost $Name))  
+ } #Function Get-Ready  
+
+### Install Nuget and VMware PowerCLI as required
+
+IF (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+
+    write-warning "Please open Powershell as administrator, the script will now exit"
+    EXIT
+
+}
+
+if (-not(($PSversionTable.PSVersion).Major -ge 5)) {
+
+    write-warning "Powershell version 5 or above is required to run this script"
+    write-warning "Please download/install from here https://www.microsoft.com/en-us/download/details.aspx?id=54616"
+    write-warning "The script will now exit"
+    EXIT
+
+}
+
+IF (-not(Get-PackageProvider -ListAvailable -name NUget)) {
+
+    Install-PackageProvider -Name NuGet -force -Confirm:$False
+}
+
+IF (-not(Get-Module -ListAvailable -name VMware.PowerCLI)) {
+
+    Install-Module -Name VMware.PowerCLI -AllowClobber -force
+}
+
+IF (-not(Get-Module -ListAvailable -name VMware.PowerCLI)) {
+
+    write-warning "PowerCLI failed to install. The script will exit"
+    EXIT
+}
+
+Set-PowerCLIConfiguration -InvalidCertificateAction Ignore -Confirm:$false
+
+write-host "Enter valid credentials to connect to the vcenter" -foregroundColor cyan
+
+IF ($global:DefaultVIServer.Length -eq 0) {
+
+    $VC = read-host -Prompt "Enter the vCenter name"
+    $VcenterCred = get-credential    
+
+}
+
+IF ($global:DefaultVIServer.Length -eq 0) {
+
+    write-warning "$VC vCenter is not connected. The script will exit, please re-run"
+    EXIT
+
+}
 
 ### 1 
 write-host "Collecting VM network card type" -ForegroundColor Cyan
@@ -198,7 +291,7 @@ IF ($HostPowerPolicy.Length -eq 0) {
 
 else {
 
-    write-warning "The below ESXi hosts that are NOT set to HIGH PERFORMANCE"
+    write-warning "There are ESXi hosts NOT set to HIGH PERFORMANCE"
     $Pre2 = "<H2>WARNING: The below ESXi hosts that are NOT set to HIGH PERFORMANCE</H2>"
     #$Pre2 += "<br><br>"
     $Section2HTML = $HostPowerPolicy | ConvertTo-HTML -Head $Head -PreContent $Pre2 -As Table | Out-String
@@ -220,7 +313,7 @@ IF ($SCSIControllerTypes.Length -eq 0) {
 
 else {
 
-    write-warning "The below VMs are using legacy LSI SCSI controller types"
+    write-warning "There are VMs are using legacy LSI SCSI controller types"
     $Pre3 = "<H2>WARNING: The below VMs are using legacy LSI SCSI controller types</H2>"
     #$Pre3 += "<br><br>"
     $Section3HTML = $SCSIControllerTypes | ConvertTo-HTML -Head $Head -PreContent $Pre3 -As Table | Out-String
@@ -243,7 +336,7 @@ If ($VMWareTools.length -eq 0) {
 
 else {
 
-    write-warning "The below VMs are running older versions of VMware tools and should be updated"
+    write-warning "There are VMs running older versions of VMware tools and should be updated"
     $Pre4 = "<H2>WARNING: The below VMs are running older versions of VMware tools and should be updated</H2>"
     #$Pre4 += "<br><br>"
     $Section4HTML = $VMWareTools | ConvertTo-HTML -Head $Head -PreContent $Pre4 -As Table | Out-String
@@ -252,22 +345,54 @@ else {
 
 ### 5 - Get ESXi host BIOS version
 
-write-host "Collecting hardware BIOS info"
+write-host "Collecting ESXi info"
 
-$ESXiBios = Get-View -ViewType HostSystem | Select-Object Name,@{N="BIOS version";E={$_.Hardware.BiosInfo.BiosVersion}}, @{N="BIOS date";E={$_.Hardware.BiosInfo.releaseDate}}
+$ESXihosts = Get-VMhost | Where-Object {$_.model -ne "VMware Virtual Platform"} | Select-Object Name, NumCpu
 
-If ($ESXiBios.length -eq 0) {
+$ESXiSummary = @()
 
-    $Pre5 = "<H2>WARNING: ESXi host bios info is not available at this time</H2>"
+ForEach ($ESXihost in $ESxiHosts) {
+
+    $aa = Get-VMHost -Name $ESXihost.Name | Select-object Name, ConnectionState, PowerState, Model, NumCPU, ProcessorType, Version, Build,`
+    @{E={[math]::Round($_.MemoryTotalGB,2)};Label='MemoryGB'}, @{E={[math]::Round($_.MemoryUsageGB,2)};Label="MemoryGBInUse"}
+
+    $bb = Get-VMHost -Name $ESXihost.Name | Get-View | Select-Object Name, @{N="BIOSversion";E={$_.Hardware.BiosInfo.BiosVersion}}, @{N="BIOSDate";E={$_.Hardware.BiosInfo.releaseDate}}
+
+    $cc = Get-VMHostNetwork -VMHost $ESXihost.Name| Select-object -ExpandProperty DNSAddress | Out-String
+    
+    $ESXiSummary += New-Object -TypeName PSObject -Property @{
+
+    Name = $aa.Name
+    ConnectionState = $aa.ConnectionState
+    PowerState = $aa.PowerState
+    Model = $aa.Model
+    NumCPU = $aa.NumCPU
+    CPUType = $aa.ProcessorType
+    Version = $aa.Version
+    Build = $aa.Build
+    MemGB = $aa.MemoryGB
+    MemGBUsed = $aa.MemoryGBInUse
+    BIOSVersion = $bb.BiosVersion
+    BIOSDate = $bb.BiosDate
+    DNSServers = $cc
+    }
+
+}
+
+If ($ESXiSummary.length -eq 0) {
+
+    $Pre5 = "<H2>WARNING: ESXi host hardware info is not available at this time</H2>"
     #$Pre5 += "<br><br>"
     $Section5HTML = $Pre5
 }
 
 Else {
 
-    $Pre5 = "<H2>INFO: ESXi host bios summary</H2>"
-    #$Pre5 += "<br><br>"
-    $Section5HTML = $ESXiBios | ConvertTo-HTML -Head $Head -PreContent $Pre5 -As Table | Out-String
+    $Pre5 = "<H2>INFO: ESXi host summary</H2>"
+
+    $ESXiSummary = $ESXiSummary | Select Name, ConnectionState, PowerState, Model, NumCPU, CPUType, BIOSVersion, BIOSDate, Version, Build, MemGB, MemGBUsed, DNSServers
+    
+    $Section5HTML = $ESXiSummary | ConvertTo-HTML -Head $Head -PreContent $Pre5 -As Table | Out-String
 
 }
 
@@ -277,6 +402,8 @@ write-host "Collecting NTP service config"
 
 $NTP = Get-VMHost | Sort-Object Name | Select-Object Name, @{N=“NTPServiceRunning“;E={($_ | Get-VmHostService | Where-Object {$_.key-eq “ntpd“}).Running}},`
 @{N=“StartupPolicy“;E={($_ | Get-VmHostService | Where-Object {$_.key-eq “ntpd“}).Policy}}, @{N=“NTPServers“;E={$_ | Get-VMHostNtpServer}}, @{N="Date&Time";E={(get-view $_.ExtensionData.configManager.DateTimeSystem).QueryDateTime()}}
+
+$NTP | Where {$_.NTPServers -notlike "*.ntp.org"} | ForEach-Object {$_ | Add-Member -MemberType NoteProperty -name "NTPServers" -value "Not set to pool.ntp.org" -Force}
 
 IF ($NTP.length -eq 0) {
 
@@ -289,9 +416,10 @@ IF ($NTP.length -eq 0) {
 Else {
 
     $Pre6 = "<H2>INFO: ESXi NTP settings</H2>"
-    #$Pre6 += "<br><br>"
     $Section6HTML = $NTP | ConvertTo-HTML -Head $Head -PreContent $Pre6 -As Table | Out-String
-
+    $Section6HTML = $Section6HTML -replace '<td>False</td>', '<td class="REDStatus">Stopped</td>'
+    $Section6HTML = $Section6HTML -replace '<td>Off</td>', '<td class="REDStatus">off</td>'
+    $Section6HTML = $Section6HTML -replace '<td>Not set to pool.ntp.org</td>', '<td class="REDStatus">Not set to ntp.org, please correct</td>'
 }
 
 
@@ -322,20 +450,33 @@ Else {
 
 write-host "Collecting vCPU / pCPU ratio"
 
-$ESXihosts = Get-VMhost | Where-Object {$_.model -ne "VMware Virtual Platform"} | Select-Object Name, NumCpu
-
 $RatioSummary = @()
 
 ForEach ($i in $ESXihosts) {
 
-    write-host "Checking $($i.name)"
+    write-host "Collecting vCPU to Physical CPU ratio info from $($i.name)"
 
     $Ratio = (Get-VMHost $i.name | Get-VM | Where-object Name -notlike "vcls*" | Select-Object -expandProperty NumCPU | Measure-Object -sum | Select-Object -ExpandProperty Sum) / $i.NumCpu
+
+    if ($Ratio -ge 5) {
+
+        $Status = "WARNING"
+
+    }
+
+    Else {
+
+        $Status = "vCPU to pCPU ratio is within acceptable limits"
+
+    }
+
+
     
     $RatioSummary += New-Object -TypeName PSObject -Property @{
 
     ESXihost = $i.Name
     Ratio = $Ratio
+    Status = $Status
 
     }
 
@@ -343,23 +484,61 @@ ForEach ($i in $ESXihosts) {
 
 if ($RatioSummary.Length -eq 0) {
 
-    $Pre8 = "<H2>WARNING: ESXi vCPU to pCPU info is not available at this time</H2>"
-    #$Pre8 += "<br><br>"
+    $Pre8 = "<H2>WARNING: ESXi vCPU to pCPU info is not available at this time</H2>"    
     $Section8HTML = $Pre8
 
 }
 
 Else {
-
-    $Pre8 = "<H2>INFO: ESXi vCPU to pCPU ratio summary</H2>"
-    #$Pre8 += "<br><br>"
+    $RatioSummary = $RatioSummary | Select ESXiHost, Status, Ratio
+    $Pre8 = "<H2>INFO: ESXi vCPU to pCPU ratio summary</H2>"    
     $Section8HTML = $RatioSummary | ConvertTo-HTML -Head $Head -PreContent $Pre8 -As Table | Out-String
+    $Section8HTML = $Section8HTML -replace '<td>WARNING</td>', '<td class="REDStatus">vCPU to pCPU ratio values above 5 can be problematic for production systems</td>'
 }
 
+### 9 CPU Ready time
+
+IF ($CPUReadySummary) {
+
+    Remove-Variable CPUReadySummary
+
+}
+
+Foreach ($ESXiHost in $ESXiHosts) {
+
+    write-host "Collecting CPU ready time from ESXi host $($ESXiHost.Name) Please wait ..." -ForegroundColor Cyan
+
+    $CPUReadySummary += Get-ESXiReady -Name $ESXiHost.Name
+
+}
+ 
+$CPUReadySummary = $CPUReadySummary | Sort-Object -Property "RealTime Ready%" -Descending
+
+### HERE
+
+if ($CPUReadySummary.Length -eq 0) {
+
+    $Pre9 = "<H2>WARNING: CPU Ready time info is not available at this time</H2>"    
+    $Section9HTML = $Pre9
+
+}
+
+Else {
+
+    $Pre9 = "<H2>INFO: ESXi CPU Ready time summary. Higest values are sorted first</H2>"    
+    $Section9HTML = $CPUReadySummary | ConvertTo-HTML -Head $Head -PreContent $Pre9 -As Table | Out-String
+}
+
+### HERE
+ 
 $HTMLReport = ""
-$HTMLReport = ConvertTo-HTML -Body "$ReportTitle $Section1HTML $Section2HTML $Section3HTML $Section4HTML $Section5HTML $Section6HTML $Section7HTML $Section8HTML" -Title "VMware Quick Environmental report"
+$HTMLReport = ConvertTo-HTML -Body "$ReportTitle $Section1HTML $Section2HTML $Section3HTML $Section4HTML $Section5HTML $Section6HTML $Section7HTML $Section8HTML $Section9HTML" -Title "VMware Quick Environmental report"
 
 $HTMLReport | out-file .\"VMWare-QuickInventory-$LogTimeStamp.html"
 Invoke-Item "VMWare-QuickInventory-$LogTimeStamp.html"
+
+write-host "Disconnecting from $VC" -ForegroundColor Cyan
+
+Disconnect-VIServer -Server $VC -Force -Confirm:$False
 
 write-host "Script is done!" -ForegroundColor Cyan
