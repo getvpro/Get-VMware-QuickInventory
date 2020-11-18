@@ -32,6 +32,9 @@ Nov 17, 2020
 -Added CPU Ready Time
 -Added DNS servers set on ESXihost
 
+Nov 18, 2020
+-Added back missing Connect-VIserver
+
 .DESCRIPTION
 Author oreynolds@gmail.com
 
@@ -239,7 +242,8 @@ write-host "Enter valid credentials to connect to the vcenter" -foregroundColor 
 IF ($global:DefaultVIServer.Length -eq 0) {
 
     $VC = read-host -Prompt "Enter the vCenter name"
-    $VcenterCred = get-credential    
+    $VcenterCred = get-credential
+    Connect-VIServer -Server $VC -Credential $VcenterCred
 
 }
 
@@ -298,7 +302,7 @@ else {
 
 }
 
-### 3 - SCSI controller types
+### 3 - SCSI controller types: https://www.sqlpassion.at/archive/2019/06/10/benchmarking-the-vmware-lsi-logic-sas-against-the-pvscsi-controller/
 $SCSIControllerTypes = Get-VM | Select-Object Name,@{N="Cluster";E={Get-Cluster -VM $_}},@{N="Controller Type";E={Get-ScsiController -VM $_ | Select-Object -ExpandProperty Type}} `
 | Where-Object {$_."Controller Type" -eq "VirtualLsiLogicSAS "} | Select-Object @{E={$_.Name};Name="VM"}, "Controller Type"
 
@@ -314,7 +318,7 @@ IF ($SCSIControllerTypes.Length -eq 0) {
 else {
 
     write-warning "There are VMs are using legacy LSI SCSI controller types"
-    $Pre3 = "<H2>WARNING: The below VMs are using legacy LSI SCSI controller types</H2>"
+    $Pre3 = "<H2>WARNING: The below VMs are using legacy LSI SCSI controller types, use VMware Paravirtual where possible</H2>"
     #$Pre3 += "<br><br>"
     $Section3HTML = $SCSIControllerTypes | ConvertTo-HTML -Head $Head -PreContent $Pre3 -As Table | Out-String
 
@@ -534,8 +538,8 @@ Else {
 $HTMLReport = ""
 $HTMLReport = ConvertTo-HTML -Body "$ReportTitle $Section1HTML $Section2HTML $Section3HTML $Section4HTML $Section5HTML $Section6HTML $Section7HTML $Section8HTML $Section9HTML" -Title "VMware Quick Environmental report"
 
-$HTMLReport | out-file .\"VMWare-QuickInventory-$LogTimeStamp.html"
-Invoke-Item "VMWare-QuickInventory-$LogTimeStamp.html"
+$HTMLReport | out-file .\Reports\"VMWare-QuickInventory-$LogTimeStamp.html"
+Invoke-Item ".\Reports\VMWare-QuickInventory-$LogTimeStamp.html"
 
 write-host "Disconnecting from $VC" -ForegroundColor Cyan
 
