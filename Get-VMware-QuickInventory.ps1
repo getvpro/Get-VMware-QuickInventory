@@ -52,9 +52,25 @@ N/A
 
 ### Variables & functions
 
-
 $ShortDate = (Get-Date).ToString('MM-dd-yyyy')
 $LogTimeStamp = (Get-Date).ToString('MM-dd-yyyy-hhmm-tt')
+
+If ($psISE) {
+
+    $CurrentDir = Split-path $psISE.CurrentFile.FullPath
+}
+
+Else {
+
+    $CurrentDir = split-path -parent $MyInvocation.MyCommand.Definition
+
+}
+
+If (-not(test-path "$CurrentDir\Reports")) {
+
+    New-item -Path "$CurrentDir\Reports" -ItemType Directory
+
+}
 
 $Head = @"
 <style>
@@ -220,11 +236,15 @@ if (-not(($PSversionTable.PSVersion).Major -ge 5)) {
 }
 
 IF (-not(Get-PackageProvider -ListAvailable -name NUget)) {
+    
+    Write-host "Installing Nuget package provider" -foregroundcolor cyan
 
     Install-PackageProvider -Name NuGet -force -Confirm:$False
 }
 
 IF (-not(Get-Module -ListAvailable -name VMware.PowerCLI)) {
+
+    Write-host "Installing VMware PowerCLI" -foregroundcolor cyan
 
     Install-Module -Name VMware.PowerCLI -AllowClobber -force
 }
@@ -358,7 +378,7 @@ $ESXiSummary = @()
 ForEach ($ESXihost in $ESxiHosts) {
 
     $aa = Get-VMHost -Name $ESXihost.Name | Select-object Name, ConnectionState, PowerState, Model, NumCPU, ProcessorType, Version, Build,`
-    @{E={[math]::Round($_.MemoryTotalGB,2)};Label='MemoryGB'}, @{E={[math]::Round($_.MemoryUsageGB,2)};Label="MemoryGBInUse"}
+    @{E={[math]::Round($_.MemoryTotalGB,2)};Label='MemoryGB'}, @{E={[math]::Round($_.MemoryUsageGB,2)};Label="MemoryGBInUse"}, @{E={$_.MaxEVCMode};Name='MaxEVCmode'}
 
     $bb = Get-VMHost -Name $ESXihost.Name | Get-View | Select-Object Name, @{N="BIOSversion";E={$_.Hardware.BiosInfo.BiosVersion}}, @{N="BIOSDate";E={$_.Hardware.BiosInfo.releaseDate}}
 
@@ -376,6 +396,7 @@ ForEach ($ESXihost in $ESxiHosts) {
     Build = $aa.Build
     MemGB = $aa.MemoryGB
     MemGBUsed = $aa.MemoryGBInUse
+    MaxEVCMode = $aa.MaxEVCmode
     BIOSVersion = $bb.BiosVersion
     BIOSDate = $bb.BiosDate
     DNSServers = $cc
@@ -394,7 +415,7 @@ Else {
 
     $Pre5 = "<H2>INFO: ESXi host summary</H2>"
 
-    $ESXiSummary = $ESXiSummary | Select Name, ConnectionState, PowerState, Model, NumCPU, CPUType, BIOSVersion, BIOSDate, Version, Build, MemGB, MemGBUsed, DNSServers
+    $ESXiSummary = $ESXiSummary | Select Name, ConnectionState, PowerState, Model, NumCPU, CPUType, BIOSVersion, BIOSDate, Version, Build, MaxEvcMode, MemGB, MemGBUsed, DNSServers
     
     $Section5HTML = $ESXiSummary | ConvertTo-HTML -Head $Head -PreContent $Pre5 -As Table | Out-String
 
@@ -510,7 +531,10 @@ IF ($CPUReadySummary) {
 
 Foreach ($ESXiHost in $ESXiHosts) {
 
-    write-host "Collecting CPU ready time from ESXi host $($ESXiHost.Name) Please wait ..." -ForegroundColor Cyan
+    $VMCount = Get-VMhost $ESXiHost.Name | Get-VM | Measure-Object | Select-Object -ExpandProperty Count
+
+    write-host "Collecting CPU ready time from ESXi host $($ESXiHost.Name)" -ForegroundColor Cyan
+    write-host "Processing should take approx $($VMCount * 1.25) seconds based on the VM count of $VMCount. Please wait ..." -ForegroundColor Cyan
 
     $CPUReadySummary += Get-ESXiReady -Name $ESXiHost.Name
 
@@ -538,8 +562,8 @@ Else {
 $HTMLReport = ""
 $HTMLReport = ConvertTo-HTML -Body "$ReportTitle $Section1HTML $Section2HTML $Section3HTML $Section4HTML $Section5HTML $Section6HTML $Section7HTML $Section8HTML $Section9HTML" -Title "VMware Quick Environmental report"
 
-$HTMLReport | out-file .\Reports\"VMWare-QuickInventory-$LogTimeStamp.html"
-Invoke-Item ".\Reports\VMWare-QuickInventory-$LogTimeStamp.html"
+$HTMLReport | out-file "$CurrentDir\Reports\VMWare-QuickInventory-$LogTimeStamp.html"
+Invoke-Item "$CUrrentDir\Reports\VMWare-QuickInventory-$LogTimeStamp.html"
 
 write-host "Disconnecting from $VC" -ForegroundColor Cyan
 
