@@ -35,6 +35,11 @@ Nov 17, 2020
 Nov 18, 2020
 -Added back missing Connect-VIserver
 
+Nov 19, 2020
+$CurrentDir added
+Estimated seconds processing time for CPU ready
+Reports directory created as required
+
 .DESCRIPTION
 Author oreynolds@gmail.com
 
