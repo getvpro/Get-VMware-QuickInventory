@@ -63,6 +63,7 @@ N/A
 
 ### Variables & functions
 
+$ShortDate = (Get-Date).ToString('MM-dd-yyyy')
 $LogTimeStamp = (Get-Date).ToString('MM-dd-yyyy-hhmm-tt')
 $ScriptStart = Get-Date
 
@@ -88,6 +89,7 @@ If (-not(test-path "$CurrentDir\Reports")) {
 
 ### HTML CSS formatting from https://adamtheautomator.com/powershell-convertto-html
 ### Colors from https://www.canva.com/colors/color-wheel/
+
 $Head = @"
 <style>
 
@@ -179,29 +181,29 @@ function Get-ESXiReady {
          $VMCPUCores = $vm.ExtensionData.config.hardware.NumCoresPerSocket  
          $VMCPUSockets = $VMCPUNumCpu / $VMCPUCores  
          $GroupedRealTimestats = Get-Stat -Entity $vm -Stat $Stattypes -Realtime -Instance "" -ErrorAction SilentlyContinue | Group-Object MetricId  
-         $RealTimeCPUAverageStat = "{0:N2}" -f $($GroupedRealTimestats | Where-object {$_.Name -eq "cpu.usage.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
-         $RealTimeCPUUsageMhzStat = "{0:N2}" -f $($GroupedRealTimestats | Where-object {$_.Name -eq "cpu.usagemhz.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
-         $RealTimeReadystat = $GroupedRealTimestats | Where-object {$_.Name -eq "cpu.ready.summation"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average  
+         $RealTimeCPUAverageStat = "{0:N2}" -f $($GroupedRealTimestats | Where {$_.Name -eq "cpu.usage.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
+         $RealTimeCPUUsageMhzStat = "{0:N2}" -f $($GroupedRealTimestats | Where {$_.Name -eq "cpu.usagemhz.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
+         $RealTimeReadystat = $GroupedRealTimestats | Where {$_.Name -eq "cpu.ready.summation"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average  
          $RealTimereadyvalue = [math]::Round($(($RealTimeReadystat / (20 * 1000)) * 100), 2)  
          $Groupeddaystats = Get-Stat -Entity $vm -Stat $Stattypes -Start (get-date).AddDays(-1) -Finish (get-date) -IntervalMins 5 -Instance "" -ErrorAction SilentlyContinue | Group-Object MetricId  
-         $dayCPUAverageStat = "{0:N2}" -f $($Groupeddaystats | Where-object {$_.Name -eq "cpu.usage.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
-         $dayCPUUsageMhzStat = "{0:N2}" -f $($Groupeddaystats | Where-object {$_.Name -eq "cpu.usagemhz.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
-         $dayReadystat = $Groupeddaystats | Where-object {$_.Name -eq "cpu.ready.summation"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average  
+         $dayCPUAverageStat = "{0:N2}" -f $($Groupeddaystats | Where {$_.Name -eq "cpu.usage.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
+         $dayCPUUsageMhzStat = "{0:N2}" -f $($Groupeddaystats | Where {$_.Name -eq "cpu.usagemhz.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
+         $dayReadystat = $Groupeddaystats | Where {$_.Name -eq "cpu.ready.summation"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average  
          $dayreadyvalue = [math]::Round($(($dayReadystat / (300 * 1000)) * 100), 2)  
          $Groupedweekstats = Get-Stat -Entity $vm -Stat $Stattypes -Start (get-date).AddDays(-7) -Finish (get-date) -IntervalMins 30 -Instance "" -ErrorAction SilentlyContinue | Group-Object MetricId  
-         $weekCPUAverageStat = "{0:N2}" -f $($Groupedweekstats | Where-object {$_.Name -eq "cpu.usage.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
-         $weekCPUUsageMhzStat = "{0:N2}" -f $($Groupedweekstats | Where-object {$_.Name -eq "cpu.usagemhz.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
-         $weekReadystat = $Groupedweekstats | Where-object {$_.Name -eq "cpu.ready.summation"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average  
+         $weekCPUAverageStat = "{0:N2}" -f $($Groupedweekstats | Where {$_.Name -eq "cpu.usage.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
+         $weekCPUUsageMhzStat = "{0:N2}" -f $($Groupedweekstats | Where {$_.Name -eq "cpu.usagemhz.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
+         $weekReadystat = $Groupedweekstats | Where {$_.Name -eq "cpu.ready.summation"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average  
          $weekreadyvalue = [math]::Round($(($weekReadystat / (1800 * 1000)) * 100), 2)  
          $Groupedmonthstats = Get-Stat -Entity $vm -Stat $Stattypes -Start (get-date).AddDays(-30) -Finish (get-date) -IntervalMins 120 -Instance "" -ErrorAction SilentlyContinue | Group-Object MetricId  
-         $monthCPUAverageStat = "{0:N2}" -f $($Groupedmonthstats | Where-object {$_.Name -eq "cpu.usage.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
-         $monthCPUUsageMhzStat = "{0:N2}" -f $($Groupedmonthstats | Where-object {$_.Name -eq "cpu.usagemhz.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
-         $monthReadystat = $Groupedmonthstats | Where-object {$_.Name -eq "cpu.ready.summation"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average  
+         $monthCPUAverageStat = "{0:N2}" -f $($Groupedmonthstats | Where {$_.Name -eq "cpu.usage.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
+         $monthCPUUsageMhzStat = "{0:N2}" -f $($Groupedmonthstats | Where {$_.Name -eq "cpu.usagemhz.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
+         $monthReadystat = $Groupedmonthstats | Where {$_.Name -eq "cpu.ready.summation"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average  
          $monthreadyvalue = [math]::Round($(($monthReadystat / (7200 * 1000)) * 100), 2)        
          $Groupedyearstats = Get-Stat -Entity $vm -Stat $Stattypes -Start (get-date).AddDays(-365) -Finish (get-date) -IntervalMins 1440 -Instance "" -ErrorAction SilentlyContinue | Group-Object MetricId  
-         $yearCPUAverageStat = "{0:N2}" -f $($Groupedyearstats | Where-object {$_.Name -eq "cpu.usage.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
-         $yearCPUUsageMhzStat = "{0:N2}" -f $($Groupedyearstats | Where-object {$_.Name -eq "cpu.usagemhz.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
-         $yearReadystat = $Groupedyearstats | Where-object {$_.Name -eq "cpu.ready.summation"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average  
+         $yearCPUAverageStat = "{0:N2}" -f $($Groupedyearstats | Where {$_.Name -eq "cpu.usage.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
+         $yearCPUUsageMhzStat = "{0:N2}" -f $($Groupedyearstats | Where {$_.Name -eq "cpu.usagemhz.average"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average)  
+         $yearReadystat = $Groupedyearstats | Where {$_.Name -eq "cpu.ready.summation"} | Select-Object -ExpandProperty Group | Measure-Object -Average Value | Select-Object -ExpandProperty Average  
          $yearreadyvalue = [math]::Round($(($yearReadystat / (86400 * 1000)) * 100), 2)    
          $data = New-Object psobject  
          $data | Add-Member -MemberType NoteProperty -Name VM -Value $vm.name  
@@ -285,10 +287,27 @@ IF (-not(Get-Module -ListAvailable -name ImportExcel)) {
 
 write-host "Start of script processing" -ForegroundColor Green
 
+$XLSGit = "https://github.com/getvpro/Get-VMware-QuickInventory/blob/master/VMware_Matrix.xlsx?raw=true"
+$File = Invoke-WebRequest -Uri $XLSGit -UseDefaultCredentials -Method Get -UseBasicParsing
+[System.IO.File]::WriteAllBytes("$CurrentDir\VMware_Matrix.xlsx", $File.Content)
+
 import-module ImportExcel
 
-$VMTMatrix = Import-Excel $CurrentDir\VMware_Matrix.xlsx -WorksheetName VMT
-$ESXiMatrix = Import-Excel $CurrentDir\VMware_Matrix.xlsx -WorksheetName ESXi
+IF (test-path "$CurrentDir\VMware_Matrix.xlsx") {
+
+    $VMTMatrix = Import-Excel $CurrentDir\VMware_Matrix.xlsx -WorksheetName VMT
+    $ESXiMatrix = Import-Excel $CurrentDir\VMware_Matrix.xlsx -WorksheetName ESXi
+
+}
+
+Else {
+
+    Write-Warning "vmware_matrix.xlsx failed to download"
+    write-warning "Please download it manually from the following location https://github.com/getvpro/Get-VMware-QuickInventory"
+    write-warning "The script will now exit"
+    EXIT
+
+}
 
 Set-PowerCLIConfiguration -InvalidCertificateAction Ignore -Confirm:$false
 
@@ -448,7 +467,7 @@ Else {
 
     $Pre5 = "<H2>INFO: ESXi host summary</H2>"
 
-    $ESXiSummary = $ESXiSummary | Select-Object Name, ConnectionState, PowerState, Model, NumCPU, CPUType, BIOSVersion, BIOSDate, Version, Build, MaxEvcMode, MemGB, MemGBUsed, DNSServers
+    $ESXiSummary = $ESXiSummary | Select Name, ConnectionState, PowerState, Model, NumCPU, CPUType, BIOSVersion, BIOSDate, Version, Build, MaxEvcMode, MemGB, MemGBUsed, DNSServers
     
     $Section5HTML = $ESXiSummary | ConvertTo-HTML -Head $Head -PreContent $Pre5 -As Table | Out-String
 
@@ -461,7 +480,7 @@ write-host "Collecting NTP service config"
 $NTP = Get-VMHost | Sort-Object Name | Select-Object Name, @{N=“NTPServiceRunning“;E={($_ | Get-VmHostService | Where-Object {$_.key-eq “ntpd“}).Running}},`
 @{N=“StartupPolicy“;E={($_ | Get-VmHostService | Where-Object {$_.key-eq “ntpd“}).Policy}}, @{N=“NTPServers“;E={$_ | Get-VMHostNtpServer}}, @{N="Date&Time";E={(get-view $_.ExtensionData.configManager.DateTimeSystem).QueryDateTime()}}
 
-$NTP | Where-object {$_.NTPServers -notlike "*.ntp.org"} | ForEach-Object {$_ | Add-Member -MemberType NoteProperty -name "NTPServers" -value "Not set to pool.ntp.org" -Force}
+$NTP | Where {$_.NTPServers -notlike "*.ntp.org"} | ForEach-Object {$_ | Add-Member -MemberType NoteProperty -name "NTPServers" -value "Not set to pool.ntp.org" -Force}
 
 IF ($NTP.length -eq 0) {
 
@@ -549,7 +568,7 @@ If ($RatioSummary.Length -eq 0) {
 
 Else {
 
-    $RatioSummary = $RatioSummary | Select-Object ESXiHost, Status, Ratio
+    $RatioSummary = $RatioSummary | Select ESXiHost, Status, Ratio
     $Pre8 = "<H2>INFO: ESXi vCPU to pCPU ratio summary</H2>"    
     $Section8HTML = $RatioSummary | ConvertTo-HTML -Head $Head -PreContent $Pre8 -As Table | Out-String
     $Section8HTML = $Section8HTML -replace '<td>WARNING</td>', '<td class="REDStatus">vCPU to pCPU ratio values above 5 can be problematic for production systems</td>'
@@ -637,7 +656,7 @@ Invoke-Item "$CurrentDir\Reports\VMWare-QuickInventory-$LogTimeStamp.html"
 
 write-host "Disconnecting from $($global:DefaultVIServer.Name)" -ForegroundColor Cyan
 
-Disconnect-VIServer -Force -Confirm:$False
+#Disconnect-VIServer -Force -Confirm:$False
 $ScriptEnd = Get-Date
 
 write-host "Script is done!" -ForegroundColor Cyan
