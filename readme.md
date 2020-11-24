@@ -1,4 +1,9 @@
-## VMware quick inventory 
+## Usage
+
+Download the XLS and PS1 to a folder and run the .PS1 as admin
+The script will attempt to install the required binaries: Nuget, Import-Excel and VMware PowerCLI
+
+## Description
 
 This simple script is used to review/report on common issues found on VMware vSphere environments that can cause performance/security issues. 
 
