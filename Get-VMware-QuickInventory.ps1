@@ -656,7 +656,7 @@ Invoke-Item "$CurrentDir\Reports\VMWare-QuickInventory-$LogTimeStamp.html"
 
 write-host "Disconnecting from $($global:DefaultVIServer.Name)" -ForegroundColor Cyan
 
-#Disconnect-VIServer -Force -Confirm:$False
+Disconnect-VIServer -Force -Confirm:$False
 $ScriptEnd = Get-Date
 
 write-host "Script is done!" -ForegroundColor Cyan
