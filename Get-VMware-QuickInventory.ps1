@@ -45,6 +45,10 @@ Nov 19, 2020
 Nov 20, 2020
 -Datastore checks added
 
+Dec 11, 2020
+-Added prompt for collection of CPU ready time
+
+
 .DESCRIPTION
 Author Owen Reynolds
 https://getvpro.com
@@ -232,7 +236,23 @@ function Get-ESXiReady {
          $data  
        } #foreach ($vm in $vmlist)  
      }#foreach ($esxi in $(Get-VMHost $Name))  
- } #Function Get-Ready  
+ } #Function Get-Ready 
+ 
+function Select-CPUReady {
+    param (
+        [string]$Title = 'CPU Ready detailed analysis'
+    )
+    Clear-Host
+    Write-Host "================ $Title ================"    
+    Write-Host "`r"
+    Write-Host "1: Press 'Y' YES"
+    Write-Host "`r"
+    Write-Host "2: Press 'N' NO"    
+    Write-Host "`r"
+    Write-Host "Q: Press 'Q' to quit"
+}
+ 
+### Functions / variables 
 
 ### Install Nuget and VMware PowerCLI as required
 
@@ -577,28 +597,68 @@ Else {
 
 ### 9 CPU Ready time
 
-IF ($CPUReadySummary) {
+Foreach ($ESXiHost in $ESXiHosts) {    
 
-    Remove-Variable CPUReadySummary
-
-}
-
-Foreach ($ESXiHost in $ESXiHosts) {
-
-    $VMCount = Get-VMhost $ESXiHost.Name | Get-VM | Measure-Object | Select-Object -ExpandProperty Count
-
-    write-host "Collecting CPU ready time from ESXi host $($ESXiHost.Name)" -ForegroundColor Cyan
-    write-host "Processing should take approx $($VMCount * 1.25) seconds based on the VM count of $VMCount. Please wait ..." -ForegroundColor Cyan
-
-    $CPUReadySummary += Get-ESXiReady -Name $ESXiHost.Name
+    $VMCount += Get-VMhost $ESXiHost.Name | Get-VM | Measure-Object | Select-Object -ExpandProperty Count    
+    $EstimatedTime += [Math]::Round($($VMCount * 1.25),2)
 
 }
+
+do {
+    Select-CPUReady
+    Write-Host "`r"
+    $input = Read-Host "Do you want to collect detailed CPU Ready stats from all VMs in the environment? Based on a VM count of $VMCount it should take approx $EstimatedTime seconds "
+    switch ($input) {
+        'Y' {
+            
+            $CPUReadyChoice = "Yes"
+        }
+
+        'N' {
+            
+            $CPUReadyChoice = "No"
+
+        }       
+
+        'q' {
+            Write-Warning "Script will now exit"
+            Exit-Script
+        }
+    }
+
+    "You chose $CPUReadyChoice"
+    Write-Host "`r"
+    Pause
+}
+until ($input -ne $null)
+
+
+IF ($CPUReadyChoice -eq "Yes") {
+
+    IF ($CPUReadySummary) {
+
+        Remove-Variable CPUReadySummary
+
+    }
+
+    Foreach ($ESXiHost in $ESXiHosts) {
+    
+        write-host "Collecting CPU ready time from ESXi host $($ESXiHost.Name)" -ForegroundColor Cyan    
+        $CPUReadySummary += Get-ESXiReady -Name $ESXiHost.Name
+
+    }
  
-$CPUReadySummary = $CPUReadySummary | Sort-Object -Property "RealTime Ready%" -Descending
+    $CPUReadySummary = $CPUReadySummary | Sort-Object -Property "RealTime Ready%" -Descending
 
-### HERE
+}
 
-if ($CPUReadySummary.Length -eq 0) {
+Else {
+
+    write-host "CPU ready stats will not be collected" -ForegroundColor Cyan
+
+}
+
+IF ($CPUReadySummary.Length -eq 0) {
 
     $Pre9 = "<H2>WARNING: CPU Ready time info is not available at this time</H2>"    
     $Section9HTML = $Pre9
