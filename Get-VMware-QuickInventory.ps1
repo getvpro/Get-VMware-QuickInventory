@@ -54,6 +54,7 @@ July 27, 2022
 -Re-format for cluster view
 -Fixed issue where cluster wasn't showing in HTML output
 -ESXi host info is now section 1, vNIC types is section 5
+-Added time in secs/mins to be presented to user before Y/N prompt on collecting detailed CPU ready time
 
 .DESCRIPTION
 Author Owen Reynolds
@@ -611,8 +612,8 @@ Else {
 Foreach ($ESXiHost in $ESXiHosts) {    
 
     $VMCount += Get-VMhost $ESXiHost.Name | Get-VM | Measure-Object | Select-Object -ExpandProperty Count    
-    $EstimatedTimeinSeconds += [Math]::Round($($VMCount * 1.25),2)
-    $EstimatedTimeinMins += [Math]::Round($($EstimatedTimeinSeconds/60),2)
+    $EstimatedTimeinSecs = [Math]::Round($($VMCount * 1.25),2)
+    $EstimatedTimeinMins = [Math]::Round($($EstimatedTimeinSecs/60),2)
 
 }
 
@@ -622,7 +623,7 @@ do {
     
     Write-Host "`r"
     
-    $input = Read-Host "Do you want to collect detailed CPU Ready stats from all VMs in the environment (Y/N) ? Based on a VM count of $VMCount it should take approx $EstimatedTime secs / $EstimatedTimeinMins mins "
+    $input = Read-Host "Do you want to collect detailed CPU Ready stats from all VMs in the environment (Y/N) ? Based on a VM count of $VMCount it should take approx $EstimatedTimeinSecs secs / $EstimatedTimeinMins mins "
     
     switch ($input) {
         'Y' {
