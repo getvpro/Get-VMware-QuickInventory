@@ -1,5 +1,4 @@
-﻿
-<#
+﻿<#
 
 .FUNCTIONALITY
 -VMware relevant inventory
@@ -48,6 +47,8 @@ Nov 20, 2020
 Dec 11, 2020
 -Added prompt for collection of CPU ready time
 
+June 29, 2022
+-Added cluster
 
 .DESCRIPTION
 Author Owen Reynolds
@@ -449,12 +450,18 @@ $ESXiSummary = @()
 
 ForEach ($ESXihost in $ESxiHosts) {
 
+    <#
     $aa = Get-VMHost -Name $ESXihost.Name | Select-object Name, ConnectionState, PowerState, Model, NumCPU, ProcessorType, Version, Build,`
+    @{E={[math]::Round($_.MemoryTotalGB,2)};Label='MemoryGB'}, @{E={[math]::Round($_.MemoryUsageGB,2)};Label="MemoryGBInUse"}, @{E={$_.MaxEVCMode};Name='MaxEVCmode'}
+    #>
+    
+    ### June 29, 2022
+    $aa = Get-Cluster -PipelineVariable cluster | Get-VMHost | Select @{N='Cluster';E={$cluster.Name}}, Name, ConnectionState, PowerState, Model, NumCPU, ProcessorType, Version, Build,`
     @{E={[math]::Round($_.MemoryTotalGB,2)};Label='MemoryGB'}, @{E={[math]::Round($_.MemoryUsageGB,2)};Label="MemoryGBInUse"}, @{E={$_.MaxEVCMode};Name='MaxEVCmode'}
 
     $bb = Get-VMHost -Name $ESXihost.Name | Get-View | Select-Object Name, @{N="BIOSversion";E={$_.Hardware.BiosInfo.BiosVersion}}, @{N="BIOSDate";E={$_.Hardware.BiosInfo.releaseDate}}
 
-    $cc = Get-VMHostNetwork -VMHost $ESXihost.Name| Select-object -ExpandProperty DNSAddress | Out-String
+    $cc = Get-VMHostNetwork -VMHost $ESXihost.Name | Select-object -ExpandProperty DNSAddress | Out-String
     
     $ESXiSummary += New-Object -TypeName PSObject -Property @{
 
@@ -606,8 +613,12 @@ Foreach ($ESXiHost in $ESXiHosts) {
 
 do {
     Select-CPUReady
+
+    
     Write-Host "`r"
-    $input = Read-Host "Do you want to collect detailed CPU Ready stats from all VMs in the environment? Based on a VM count of $VMCount it should take approx $EstimatedTime seconds "
+    
+    $input = Read-Host "Do you want to collect detailed CPU Ready stats from all VMs in the environment (Y/N) ? Based on a VM count of $VMCount it should take approx $EstimatedTime seconds "
+    
     switch ($input) {
         'Y' {
             
