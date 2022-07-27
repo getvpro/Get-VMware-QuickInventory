@@ -50,6 +50,9 @@ Dec 11, 2020
 June 29, 2022
 -Added cluster
 
+July 27, 2022
+-Re-format for cluster view
+
 .DESCRIPTION
 Author Owen Reynolds
 https://getvpro.com
@@ -446,39 +449,40 @@ write-host "Collecting ESXi info"
 
 $ESXihosts = Get-VMhost | Where-Object {$_.model -ne "VMware Virtual Platform"} | Select-Object Name, NumCpu
 
+$AllESXiInClusters = Get-Cluster -PipelineVariable cluster| Get-VMHost | Select Name, @{N='Cluster';E={$cluster.Name}} -ErrorAction SilentlyContinue
+
 $ESXiSummary = @()
 
-ForEach ($ESXihost in $ESxiHosts) {
+ForEach ($ESXihost in $ESxiHosts) {    
 
-    <#
-    $aa = Get-VMHost -Name $ESXihost.Name | Select-object Name, ConnectionState, PowerState, Model, NumCPU, ProcessorType, Version, Build,`
+    write-host "Collecting info from $ESXihost now" -ForegroundColor Cyan    
+
+    $ESXi = Get-VMHost -Name $ESXihost.Name | Select Name, ConnectionState, PowerState, Model, NumCPU, ProcessorType, Version, Build,`
     @{E={[math]::Round($_.MemoryTotalGB,2)};Label='MemoryGB'}, @{E={[math]::Round($_.MemoryUsageGB,2)};Label="MemoryGBInUse"}, @{E={$_.MaxEVCMode};Name='MaxEVCmode'}
-    #>
     
-    ### June 29, 2022
-    $aa = Get-Cluster -PipelineVariable cluster | Get-VMHost | Select @{N='Cluster';E={$cluster.Name}}, Name, ConnectionState, PowerState, Model, NumCPU, ProcessorType, Version, Build,`
-    @{E={[math]::Round($_.MemoryTotalGB,2)};Label='MemoryGB'}, @{E={[math]::Round($_.MemoryUsageGB,2)};Label="MemoryGBInUse"}, @{E={$_.MaxEVCMode};Name='MaxEVCmode'}
+    $Cluster = $AllESXiInClusters | Where {$_.Name -eq $ESXihost.Name} | Select-Object -ExpandProperty Cluster
+    
+    $BIOS = Get-VMHost -Name $ESXihost.Name | Get-View | Select-Object Name, @{N="BIOSversion";E={$_.Hardware.BiosInfo.BiosVersion}}, @{N="BIOSDate";E={$_.Hardware.BiosInfo.releaseDate}}
 
-    $bb = Get-VMHost -Name $ESXihost.Name | Get-View | Select-Object Name, @{N="BIOSversion";E={$_.Hardware.BiosInfo.BiosVersion}}, @{N="BIOSDate";E={$_.Hardware.BiosInfo.releaseDate}}
-
-    $cc = Get-VMHostNetwork -VMHost $ESXihost.Name | Select-object -ExpandProperty DNSAddress | Out-String
+    $VMNetwork= Get-VMHostNetwork -VMHost $ESXihost.Name | Select-object -ExpandProperty DNSAddress | Out-String
     
     $ESXiSummary += New-Object -TypeName PSObject -Property @{
 
-    Name = $aa.Name
-    ConnectionState = $aa.ConnectionState
-    PowerState = $aa.PowerState
-    Model = $aa.Model
-    NumCPU = $aa.NumCPU
-    CPUType = $aa.ProcessorType
-    Version = $aa.Version
-    Build = $aa.Build
-    MemGB = $aa.MemoryGB
-    MemGBUsed = $aa.MemoryGBInUse
-    MaxEVCMode = $aa.MaxEVCmode
-    BIOSVersion = $bb.BiosVersion
-    BIOSDate = $bb.BiosDate
-    DNSServers = $cc
+    Name = $esxi.Name
+    Cluster = $Cluster
+    ConnectionState = $esxi.ConnectionState
+    PowerState = $esxi.PowerState
+    Model = $esxi.Model
+    NumCPU = $esxi.NumCPU
+    CPUType = $esxi.ProcessorType
+    Version = $esxi.Version
+    Build = $esxi.Build
+    MemGB = $esxi.MemoryGB
+    MemGBUsed = $esxi.MemoryGBInUse
+    MaxEVCMode = $esxi.MaxEVCmode
+    BIOSVersion = $BIOS.BiosVersion
+    BIOSDate = $BIOS.BiosDate
+    DNSServers = $VMNetwork
     }
 
 }
