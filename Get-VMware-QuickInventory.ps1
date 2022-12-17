@@ -2,8 +2,9 @@
 
 .FUNCTIONALITY
 -VMware relevant inventory
--Uses PowerCLI
+-Uses PowerCLI, install via install-module vmware.powercli -scope AllUsers -force -SkipPublisherCheck -AllowClobber
 -use install-module vmware.powercli -allowclobber as required
+-install 
 
 .SYNOPSIS
 -This script was created to help others identify simple issues present in most VMware ESXi environments
@@ -50,11 +51,8 @@ Dec 11, 2020
 June 29, 2022
 -Added cluster
 
-July 27, 2022
--Re-format for cluster view
--Fixed issue where cluster wasn't showing in HTML output
--ESXi host info is now section 1, vNIC types is section 5
--Added time in secs/mins to be presented to user before Y/N prompt on collecting detailed CPU ready time
+Dec 16, 2022
+-Updated cluster scan method
 
 .DESCRIPTION
 Author Owen Reynolds
@@ -362,17 +360,18 @@ $IntelNICs = get-vm  | get-networkadapter | Where-object {$_.Type -ne 'VMxnet3'}
 IF ($IntelNICs.Length -eq 0) {
 
     write-host "All network card types are set correctly to VMware VXnet 3 type" -ForegroundColor Green
-    $Pre5 = "<H2>PASS: All Network card type attached to shells are set correctly</H2>"
+    $Pre1 = "<H2>PASS: All Network card type attached to shells are set correctly</H2>"
     #$Pre1 += "<br><br>"
-    $Section5HTML = $Pre5
+    $Section1HTML = $Pre1
     
 }
 
 Else {
 
     Write-Warning "$($IntelNICs | Measure-Object | Select-object -ExpandProperty Count) VM(s) were found with legacy intel network card types"
-    $Pre5 = "<H2>WARNING: Intel E1000 legacy network card type VMs detected</H2>"    
-    $Section5HTML = $IntelNICs | ConvertTo-HTML -Head $Head -PreContent $Pre5 -As Table | Out-String
+    $Pre1 = "<H2>WARNING: Intel E1000 legacy network card type VMs detected</H2>"
+    #$Pre1 += "<br><br>"
+    $Section1HTML = $IntelNICs | ConvertTo-HTML -Head $Head -PreContent $Pre1 -As Table | Out-String
 
 }
 
@@ -451,57 +450,56 @@ write-host "Collecting ESXi info"
 
 $ESXihosts = Get-VMhost | Where-Object {$_.model -ne "VMware Virtual Platform"} | Select-Object Name, NumCpu
 
-$AllESXiInClusters = Get-Cluster -PipelineVariable cluster| Get-VMHost | Select Name, @{N='Cluster';E={$cluster.Name}} -ErrorAction SilentlyContinue
-
 $ESXiSummary = @()
 
-ForEach ($ESXihost in $ESxiHosts) {    
+ForEach ($ESXihost in $ESxiHosts) {
+    
+    ### June 29, 2022 - retired Dec 16, 2022
+    ## $aa = Get-Cluster -PipelineVariable cluster | Get-VMHost | Select @{N='Cluster';E={$cluster.Name}}, Name, ConnectionState, PowerState, Model, NumCPU, ProcessorType, Version, Build,`
+    @{E={[math]::Round($_.MemoryTotalGB,2)};Label='MemoryGB'}, @{E={[math]::Round($_.MemoryUsageGB,2)};Label="MemoryGBInUse"}, @{E={$_.MaxEVCMode};Name='MaxEVCmode'}
 
-    write-host "Collecting info from $ESXihost now" -ForegroundColor Cyan    
-
-    $ESXi = Get-VMHost -Name $ESXihost.Name | Select Name, ConnectionState, PowerState, Model, NumCPU, ProcessorType, Version, Build,`
+    $aa = Get-VMHost -Name $ESXihost.Name | Select @{N='Cluster';E={$_.Parent}}, Name, ConnectionState, PowerState, Model, NumCPU, ProcessorType, Version, Build,`
     @{E={[math]::Round($_.MemoryTotalGB,2)};Label='MemoryGB'}, @{E={[math]::Round($_.MemoryUsageGB,2)};Label="MemoryGBInUse"}, @{E={$_.MaxEVCMode};Name='MaxEVCmode'}
     
-    $Cluster = $AllESXiInClusters | Where {$_.Name -eq $ESXihost.Name} | Select-Object -ExpandProperty Cluster
-    
-    $BIOS = Get-VMHost -Name $ESXihost.Name | Get-View | Select-Object Name, @{N="BIOSversion";E={$_.Hardware.BiosInfo.BiosVersion}}, @{N="BIOSDate";E={$_.Hardware.BiosInfo.releaseDate}}
+    $bb = Get-VMHost -Name $ESXihost.Name | Get-View | Select-Object Name, @{N="BIOSversion";E={$_.Hardware.BiosInfo.BiosVersion}}, @{N="BIOSDate";E={$_.Hardware.BiosInfo.releaseDate}}
 
-    $VMNetwork= Get-VMHostNetwork -VMHost $ESXihost.Name | Select-object -ExpandProperty DNSAddress | Out-String
-    
+    $cc = Get-VMHostNetwork -VMHost $ESXihost.Name | Select-object -ExpandProperty DNSAddress | Out-String
+           
     $ESXiSummary += New-Object -TypeName PSObject -Property @{
 
-    Name = $esxi.Name
-    Cluster = $Cluster
-    ConnectionState = $esxi.ConnectionState
-    PowerState = $esxi.PowerState
-    Model = $esxi.Model
-    NumCPU = $esxi.NumCPU
-    CPUType = $esxi.ProcessorType
-    Version = $esxi.Version
-    Build = $esxi.Build
-    MemGB = $esxi.MemoryGB
-    MemGBUsed = $esxi.MemoryGBInUse
-    MaxEVCMode = $esxi.MaxEVCmode
-    BIOSVersion = $BIOS.BiosVersion
-    BIOSDate = $BIOS.BiosDate
-    DNSServers = $VMNetwork
+    Name = $aa.Name
+    ConnectionState = $aa.ConnectionState
+    PowerState = $aa.PowerState
+    Model = $aa.Model
+    NumCPU = $aa.NumCPU
+    CPUType = $aa.ProcessorType
+    Version = $aa.Version
+    Build = $aa.Build
+    MemGB = $aa.MemoryGB
+    MemGBUsed = $aa.MemoryGBInUse
+    MaxEVCMode = $aa.MaxEVCmode
+
+    BIOSVersion = $bb.BiosVersion
+    BIOSDate = $bb.BiosDate
+    DNSServers = $cc
     }
 
 }
 
 If ($ESXiSummary.length -eq 0) {
 
-    $Pre1 = "<H2>WARNING: ESXi host hardware info is not available at this time</H2>"    
-    $Section1HTML = $Pre1
+    $Pre5 = "<H2>WARNING: ESXi host hardware info is not available at this time</H2>"
+    #$Pre5 += "<br><br>"
+    $Section5HTML = $Pre5
 }
 
 Else {
 
-    $Pre1 = "<H2>INFO: ESXi host summary</H2>"
+    $Pre5 = "<H2>INFO: ESXi host summary</H2>"
 
-    $ESXiSummary = $ESXiSummary | Select-Object Name, Cluster, ConnectionState, PowerState, Model, NumCPU, CPUType, BIOSVersion, BIOSDate, Version, Build, MaxEvcMode, MemGB, MemGBUsed, DNSServers
+    $ESXiSummary = $ESXiSummary | Select-Object Name, ConnectionState, PowerState, Model, NumCPU, CPUType, BIOSVersion, BIOSDate, Version, Build, MaxEvcMode, MemGB, MemGBUsed, DNSServers
     
-    $Section1HTML = $ESXiSummary | ConvertTo-HTML -Head $Head -PreContent $Pre1 -As Table | Out-String
+    $Section5HTML = $ESXiSummary | ConvertTo-HTML -Head $Head -PreContent $Pre5 -As Table | Out-String
 
 }
 
@@ -612,8 +610,7 @@ Else {
 Foreach ($ESXiHost in $ESXiHosts) {    
 
     $VMCount += Get-VMhost $ESXiHost.Name | Get-VM | Measure-Object | Select-Object -ExpandProperty Count    
-    $EstimatedTimeinSecs = [Math]::Round($($VMCount * 1.25),2)
-    $EstimatedTimeinMins = [Math]::Round($($EstimatedTimeinSecs/60),2)
+    $EstimatedTime += [Math]::Round($($VMCount * 1.25),2)
 
 }
 
@@ -623,7 +620,7 @@ do {
     
     Write-Host "`r"
     
-    $input = Read-Host "Do you want to collect detailed CPU Ready stats from all VMs in the environment (Y/N) ? Based on a VM count of $VMCount it should take approx $EstimatedTimeinSecs secs / $EstimatedTimeinMins mins "
+    $input = Read-Host "Do you want to collect detailed CPU Ready stats from all VMs in the environment (Y/N) ? Based on a VM count of $VMCount it should take approx $EstimatedTime seconds "
     
     switch ($input) {
         'Y' {
