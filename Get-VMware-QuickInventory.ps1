@@ -54,6 +54,10 @@ June 29, 2022
 Dec 16, 2022
 -Updated cluster scan method
 
+Oct 12, 2023
+-Added Physical CPU socket count
+-Amended NumCPU to NumCPUCore
+
 .DESCRIPTION
 Author Owen Reynolds
 https://getvpro.com
@@ -261,12 +265,14 @@ function Select-CPUReady {
 
 ### Install Nuget and VMware PowerCLI as required
 
+<#
 IF (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
 
     write-warning "Please open Powershell as administrator, the script will now exit"
     EXIT
 
 }
+#>
 
 if (-not(($PSversionTable.PSVersion).Major -ge 5)) {
 
@@ -464,6 +470,8 @@ ForEach ($ESXihost in $ESxiHosts) {
     $bb = Get-VMHost -Name $ESXihost.Name | Get-View | Select-Object Name, @{N="BIOSversion";E={$_.Hardware.BiosInfo.BiosVersion}}, @{N="BIOSDate";E={$_.Hardware.BiosInfo.releaseDate}}
 
     $cc = Get-VMHostNetwork -VMHost $ESXihost.Name | Select-object -ExpandProperty DNSAddress | Out-String
+
+    $dd = (Get-VMHost -Name $ESXihost.Name).ExtensionData.Summary.Hardware.NumCpuPkgs
            
     $ESXiSummary += New-Object -TypeName PSObject -Property @{
 
@@ -471,14 +479,14 @@ ForEach ($ESXihost in $ESxiHosts) {
     ConnectionState = $aa.ConnectionState
     PowerState = $aa.PowerState
     Model = $aa.Model
-    NumCPU = $aa.NumCPU
+    NumCPUCore = $aa.NumCPU
+    NumCPUSocket = $dd
     CPUType = $aa.ProcessorType
     Version = $aa.Version
     Build = $aa.Build
     MemGB = $aa.MemoryGB
     MemGBUsed = $aa.MemoryGBInUse
     MaxEVCMode = $aa.MaxEVCmode
-
     BIOSVersion = $bb.BiosVersion
     BIOSDate = $bb.BiosDate
     DNSServers = $cc
@@ -497,7 +505,7 @@ Else {
 
     $Pre5 = "<H2>INFO: ESXi host summary</H2>"
 
-    $ESXiSummary = $ESXiSummary | Select-Object Name, ConnectionState, PowerState, Model, NumCPU, CPUType, BIOSVersion, BIOSDate, Version, Build, MaxEvcMode, MemGB, MemGBUsed, DNSServers
+    $ESXiSummary = $ESXiSummary | Select-Object Name, ConnectionState, PowerState, Model, NumCPUCore, NumCPUSocket, CPUType, BIOSVersion, BIOSDate, Version, Build, MaxEvcMode, MemGB, MemGBUsed, DNSServers
     
     $Section5HTML = $ESXiSummary | ConvertTo-HTML -Head $Head -PreContent $Pre5 -As Table | Out-String
 
