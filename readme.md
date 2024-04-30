@@ -1,9 +1,13 @@
 ## Usage
 
 Download the XLS and PS1 to a folder and run the .PS1 as admin
+
 The script will attempt to install the required binaries: Nuget, Import-Excel and VMware PowerCLI
+
 You will be prompted to enter in a vCenter address (enter it without the leading https://)
+
 You will then receive a second [y]/[n] prompt for collection of additional historical performance data from each ESXi hosts
+
 ![image](https://github.com/getvpro/Get-VMware-QuickInventory/assets/50507806/1174173b-243c-40f5-be37-f85c43451934)
 
 
