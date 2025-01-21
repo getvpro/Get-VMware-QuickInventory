@@ -58,6 +58,13 @@ Oct 12, 2023
 -Added Physical CPU socket count
 -Amended NumCPU to NumCPUCore
 
+Jan 15, 2025
+-vCPU to pCPU over-commit ratio updated
+
+Jan 21, 2025
+-Only 'conneceted' ESXi hosts are collected
+-Only Powered on VMs are collected for vCPU count
+
 .DESCRIPTION
 Author Owen Reynolds
 https://getvpro.com
@@ -454,7 +461,7 @@ else {
 
 write-host "Collecting ESXi info"
 
-$ESXihosts = Get-VMhost | Where-Object {$_.model -ne "VMware Virtual Platform"} | Select-Object Name, NumCpu
+$ESXihosts = Get-VMhost | Where-Object {($_.model -ne "VMware Virtual Platform") -and ($_.ConnectionState -eq 'Connected')} | Select-Object Name, NumCpu
 
 $ESXiSummary = @()
 
@@ -571,17 +578,17 @@ ForEach ($i in $ESXihosts) {
 
     write-host "Collecting vCPU to Physical CPU ratio info from $($i.name)"
 
-    $Ratio = (Get-VMHost $i.name | Get-VM | Where-object Name -notlike "vcls*" | Select-Object -expandProperty NumCPU | Measure-Object -sum | Select-Object -ExpandProperty Sum) / $i.NumCpu
+    $Ratio = (Get-VMHost $i.name | Get-VM | Where-object Name -notlike "vcls*" | Where-object PowerState -eq "PoweredOn" | Select-Object -expandProperty NumCPU | Measure-Object -sum | Select-Object -ExpandProperty Sum) / $i.NumCpu    
 
-    if ($Ratio -ge 5) {
+    if ($Ratio -ge 2) {
 
-        $Status = "WARNING"
+        $Status = "WARNING: 2:1 vCPU to pCPU over-commit has been recorded"
 
     }
 
     Else {
 
-        $Status = "vCPU to pCPU ratio is within acceptable limits"
+        $Status = "vCPU to pCPU ratio is within acceptable limits:2 vCpus to each pCPU"
 
     }
 
