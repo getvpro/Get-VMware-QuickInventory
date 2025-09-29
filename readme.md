@@ -37,3 +37,8 @@ The following 8 elements are reported on
 
 1. Scan all VMs to ID which ESXi hosts are running older BIOS (EFI) levels. The suggestion would be to update where required in a maintenance window
 1. Checks vCPU to Physical CPU ratio. It's suggested not to exceed a ratio of 5 for Citrix environments , but other workloads can run fine at higher ratios
+   
+ ## Output
+1. an HTML report will be created
+2. A single XLS workbook will be created, with multiple tabs will be created for the relevant elements listed in the previous section
+ 
