@@ -23,6 +23,8 @@ Package provider NUGET will be installed to facilitate installing the VMware Pow
 
 The following 8 elements are reported on
 
+1. Inventory of vSphere clusters capturing ESXI name, version, hardware model, CPU, memory and physical network cards
+
 1. Check that the NTP service is set to ca.ntp.org or pool.ntp.org and to set to "start/stop with host"
 
 1. Check that the power management settings for the ESXi host is set to HIGH PERFORMANCE , else the max performance the ESXi server CPU will run at, will be 80%
@@ -36,6 +38,7 @@ The following 8 elements are reported on
 1. Scan all VMs to ID which are on older VM hardware types on their shell. The suggestion would be to schedule upgrades/reboots of the shells in a maintenance window
 
 1. Scan all VMs to ID which ESXi hosts are running older BIOS (EFI) levels. The suggestion would be to update where required in a maintenance window
+
 1. Checks vCPU to Physical CPU ratio. It's suggested not to exceed a ratio of 5 for Citrix environments , but other workloads can run fine at higher ratios
    
  ## Output
