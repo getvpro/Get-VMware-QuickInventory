@@ -77,6 +77,9 @@ Sept 26, 2025
 -Fix formatting for vCPU to CPU ratio in HTML
 -Added code to stop apending total run time to end of HTML report
 
+Sept 29, 2025
+-Code hygiene updates
+
 .DESCRIPTION
 Author Owen Reynolds
 https://getvpro.com
@@ -269,7 +272,7 @@ function Select-CPUReady {
     param (
         [string]$Title = 'CPU Ready detailed analysis'
     )
-    Clear-Host
+    #Clear-Host
     Write-Host "================ $Title ================"    
     Write-Host "`r"
     Write-Host "1: Press 'Y' YES"
@@ -398,8 +401,10 @@ import-module ImportExcel
 
 ### REGION START OF SCRIPT PROCESSING
 
-Set-PowerCLIConfiguration -Scope User -ParticipateInCEIP $False
+Set-PowerCLIConfiguration -Scope User -ParticipateInCEIP $False -Confirm:$false
 Set-PowerCLIConfiguration -InvalidCertificateAction Ignore -Confirm:$false
+
+write-host "r`n"
 
 write-host "Connecting to vCenter" -foregroundColor cyan
 
@@ -670,7 +675,7 @@ Else {
     $RatioSummary = $RatioSummary | Select-Object ESXiHost, Status, Ratio
     $Pre8 = "<H2>INFO: ESXi vCPU to pCPU ratio summary</H2>"    
     $RatioSummaryHTML = $RatioSummary | ConvertTo-HTML -Head $Head -PreContent $Pre8 -As Table | Out-String
-    $RatioSummaryHTML = $RatioSummary -replace '<td>WARNING</td>', '<td class="REDStatus">vCPU to pCPU ratio values above 5 can be problematic for VDI workloads</td>'
+    $RatioSummaryHTML = $RatioSummaryHTML -replace '<td>WARNING</td>', '<td class="REDStatus">vCPU to pCPU ratio values above 5 can be problematic for VDI workloads</td>'   
 
 }
 
@@ -691,7 +696,6 @@ Foreach ($ESXiHost in $ESXiHosts) {
     $timeSpan = [TimeSpan]::FromSeconds($EstimatedTimeSeconds)
 
     Write-Host "Total VMs: $VMCount"
-    Write-Host ("Estimated Time: {0} hours, {1} minutes, {2} seconds" -f $timeSpan.Hours, $timeSpan.Minutes, $timeSpan.Seconds)
 
     $EstimatedTime = "{0} hours, {1} minutes, {2} seconds" -f $timeSpan.Hours, $timeSpan.Minutes, $timeSpan.Seconds
 
