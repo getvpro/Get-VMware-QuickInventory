@@ -21,7 +21,7 @@ Outputs to a time-stamped HTML report that will open towards the end of the scri
 
 Package provider NUGET will be installed to facilitate installing the VMware PowerCLI module from PS Windows gallery 
 
-The following 8 elements are reported on
+The following elements are reported on:
 
 1. Inventory of vSphere clusters capturing ESXI name, version, hardware model, CPU, memory and physical network cards
 
