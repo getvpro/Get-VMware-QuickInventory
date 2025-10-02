@@ -1,6 +1,6 @@
 ## Usage
 
-Download the XLS and PS1 to a folder and run the .PS1 as admin
+Download the .PS1 to a folder and run the .PS1 as admin
 
 The script will attempt to install the required binaries: Nuget, Import-Excel and VMware PowerCLI
 
