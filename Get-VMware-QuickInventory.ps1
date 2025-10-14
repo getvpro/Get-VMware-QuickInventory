@@ -82,6 +82,8 @@ Oct 14, 2025
 -Consolidated Get-VM calls for performance optimization ; -CLS VM(s) are filtered out
 -Added 'All VMs' XLS tab with comprehensive VM details
 -Removed CPU Ready time from HTML output (retained in XLS)
+-Added back requirement to launch elevated
+-Removed VMToolsXLS matrix code
 
 .DESCRIPTION
 Author Owen Reynolds
@@ -374,14 +376,12 @@ function Convert-GuestOSId {
 
 ### Install Nuget and VMware PowerCLI as required
 
-<#
 IF (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
 
     write-warning "Please open Powershell as administrator, the script will now exit"
     EXIT
 
 }
-#>
 
 ### REGION MODULES
 
@@ -429,12 +429,7 @@ IF (-not(Get-Module -ListAvailable -name ImportExcel)) {
 
 write-host "Start of script processing" -ForegroundColor Green
 
-$XLSGit = "https://github.com/getvpro/Get-VMware-QuickInventory/blob/master/VMware_Matrix.xlsx?raw=true"
-$File = Invoke-WebRequest -Uri $XLSGit -UseDefaultCredentials -Method Get -UseBasicParsing
-[System.IO.File]::WriteAllBytes("$CurrentDir\VMware_Matrix.xlsx", $File.Content)
-
 import-module ImportExcel
-
 
 ### REGION START OF SCRIPT PROCESSING
 
