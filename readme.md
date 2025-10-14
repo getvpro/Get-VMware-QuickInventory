@@ -1,12 +1,54 @@
+## PS module pre-reqs
+1. The script should be run from a recently updated version of windows
+1. The script only requires access to vCenter, it does not install components on any vSphere infra: vCenter / ESXi
+1. When run, the script will attempt to install the required binaries: Nuget, Import-Excel and VMware PowerCLI
+1. If it's preferred, you can install them manually via elevated powershell / PowersShell_ISE window as follows:
+
+```
+IF (-not(Get-PackageProvider -ListAvailable -name NUget)) {
+    
+    Write-host "Installing Nuget package provider" -foregroundcolor cyan
+
+    Install-PackageProvider -Name NuGet -force -Confirm:$False
+}
+
+IF (-not(Get-Module -ListAvailable -name VMware.PowerCLI)) {
+
+    Write-host "Installing VMware PowerCLI" -foregroundcolor cyan
+
+    Install-Module -Name VMware.PowerCLI -AllowClobber -force
+}
+
+IF (-not(Get-Module -ListAvailable -name VMware.PowerCLI)) {
+
+    write-warning "PowerCLI failed to install. The script will exit"
+    EXIT
+}
+
+IF (-not(Get-Module -ListAvailable -name ImportExcel)) {
+
+    Write-host "Installing ImportExcel for use with .XLS" -foregroundcolor cyan
+
+    Install-Module -Name ImportExcel -AllowClobber -force
+}
+
+IF (-not(Get-Module -ListAvailable -name ImportExcel)) {
+
+    write-warning "The ImportExcel module failed to install, the script will exit"
+    EXIT
+}
+
+```
+
 ## Usage
 
-Download the .PS1 to a folder and run the .PS1 as admin
+_NOTE: HTML/XLS Reports genreated are local, nothing is uploaded off client devices_
 
-The script will attempt to install the required binaries: Nuget, Import-Excel and VMware PowerCLI
+1. Download the .PS1 to a folder and run the .PS1 as admin
 
-You will be prompted to enter in a vCenter address (enter it without the leading https://)
+1. You will be prompted to enter in a vCenter address (enter it without the leading https://)
 
-You will then receive a second [y]/[n] prompt for collection of additional historical performance data for VMs on each ESXi host
+1. You will then receive a second [y]/[n] prompt for collection of additional historical performance data for VMs on each ESXi host
 
 ![image](https://github.com/getvpro/Get-VMware-QuickInventory/assets/50507806/1174173b-243c-40f5-be37-f85c43451934)
 
