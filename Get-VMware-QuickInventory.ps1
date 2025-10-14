@@ -45,9 +45,6 @@ Nov 19, 2020
 Nov 20, 2020
 -Datastore checks added
 
-Dec 11, 2020
--Added prompt for collection of CPU ready time
-
 June 29, 2022
 -Added cluster
 
@@ -71,7 +68,7 @@ Sept 26, 2025
 -SectionHTMLs changed to actual content description: NTP, ESXi, DataStore, CPU Ready type, etc
 -Relevant sections export to XLS, Excel is opened where it's installed to view the report
 -Re-titled VMware tools XLS tab in workwork to 'VMWare Tools out of date'
--Add auto filter to ESXi summary and CPU ready time
+-Added auto filter to ESXi summary and CPU ready time
 -tabs for network cards, power profiles, NIC cards only created as required
 -Amend warnning to menion only for VDI
 -Fix formatting for vCPU to CPU ratio in HTML
@@ -80,9 +77,15 @@ Sept 26, 2025
 Sept 29, 2025
 -Code hygiene updates
 
+Oct 14, 2025
+-VM OS capture added
+-Consolidated Get-VM calls for performance optimization ; -CLS VM(s) are filtered out
+-Added 'All VMs' XLS tab with comprehensive VM details
+-Removed CPU Ready time from HTML output (retained in XLS)
+
 .DESCRIPTION
 Author Owen Reynolds
-https://getvpro.com
+[https://getvpro.com](https://getvpro.com)
 
 .EXAMPLE
 ./Get-VMware-QuickInventory.ps1
@@ -119,8 +122,8 @@ If (-not(test-path "$CurrentDir\Reports")) {
 
 }
 
-### HTML CSS formatting from https://adamtheautomator.com/powershell-convertto-html
-### Colors from https://www.canva.com/colors/color-wheel/
+### HTML CSS formatting from [https://adamtheautomator.com/powershell-convertto-html](https://adamtheautomator.com/powershell-convertto-html)
+### Colors from [https://www.canva.com/colors/color-wheel/](https://www.canva.com/colors/color-wheel/)
 
 $Head = @"
 <style>
@@ -198,7 +201,7 @@ $ReportTitle += "<hr></hr>"
 
 function Get-ESXiReady {  
    <#  
-   http://kunaludapi.blogspot.com/2015/01/powercli-cpu-ready-and-usage-from.html
+   [http://kunaludapi.blogspot.com/2015/01/powercli-cpu-ready-and-usage-from.html](http://kunaludapi.blogspot.com/2015/01/powercli-cpu-ready-and-usage-from.html)
    #>  
    [CmdletBinding()]  
    param(  
@@ -206,7 +209,7 @@ function Get-ESXiReady {
    [String]$Name) #param   
      $Stattypes = "cpu.usage.average", "cpu.usagemhz.average", "cpu.ready.summation"  
      foreach ($esxi in $(Get-VMHost $Name)) {  
-       $vmlist = $esxi | Get-VM | Where-Object {$_.PowerState -eq "PoweredOn"}  
+       $vmlist = $AllVMs | Where-Object {$_.VMHost.Name -eq $esxi.Name -and $_.PowerState -eq "PoweredOn"}
        $esxiCPUSockets = $esxi.ExtensionData.Summary.Hardware.NumCpuPkgs   
        $esxiCPUcores = $esxi.ExtensionData.Summary.Hardware.NumCpuCores/$esxiCPUSockets  
        $TotalesxiCPUs = $esxiCPUSockets * $esxiCPUcores  
@@ -333,6 +336,40 @@ function Find-And-LaunchExcel {
     }
 }
 
+function Convert-GuestOSId {
+    param (
+        [string]$GuestId
+    )
+    
+    $osMap = @{
+        'windows9Server64Guest' = 'Windows Server 2016 (64-bit)'
+        'windows2019srv_64Guest' = 'Windows Server 2019 (64-bit)'
+        'windows2019srvNext_64Guest' = 'Windows Server 2022 (64-bit)'
+        'windows11_64Guest' = 'Windows 11 (64-bit)'
+        'windows10_64Guest' = 'Windows 10 (64-bit)'
+        'windows9_64Guest' = 'Windows 10 (64-bit)'
+        'windows8Server64Guest' = 'Windows Server 2012 R2 (64-bit)'
+        'windows8_64Guest' = 'Windows 8 (64-bit)'
+        'windows7Server64Guest' = 'Windows Server 2008 R2 (64-bit)'
+        'windows7_64Guest' = 'Windows 7 (64-bit)'
+        'centos8_64Guest' = 'CentOS 8 (64-bit)'
+        'centos7_64Guest' = 'CentOS 7 (64-bit)'
+        'rhel8_64Guest' = 'Red Hat Enterprise Linux 8 (64-bit)'
+        'rhel7_64Guest' = 'Red Hat Enterprise Linux 7 (64-bit)'
+        'ubuntu64Guest' = 'Ubuntu Linux (64-bit)'
+        'debian10_64Guest' = 'Debian 10 (64-bit)'
+        'debian11_64Guest' = 'Debian 11 (64-bit)'
+        'otherLinux64Guest' = 'Other Linux (64-bit)'
+        'otherGuest64' = 'Other OS (64-bit)'
+    }
+    
+    if ($osMap.ContainsKey($GuestId)) {
+        return $osMap[$GuestId]
+    } else {
+        return $GuestId
+    }
+}
+
 ### END REGION FUNCTIONS
 
 ### Install Nuget and VMware PowerCLI as required
@@ -423,9 +460,38 @@ IF ($global:DefaultVIServer.Length -eq 0) {
 
 }
 
+### CONSOLIDATED VM DATA COLLECTION - Single Get-VM call for performance optimization
+write-host "Collecting all VM information (single pass - optimized)" -ForegroundColor Cyan
+$AllVMs = Get-VM | Where-Object {$_.Name -notlike "vCLS-*"}
+
+### NEW - All VMs detailed summary for XLS export
+write-host "Collecting detailed VM information for All VMs tab" -ForegroundColor Cyan
+
+$AllVMsDetails = $AllVMs | ForEach-Object {
+    $vm = $_
+    $nicType = ($vm | Get-NetworkAdapter | Select-Object -First 1).Type
+    $toolsVersion = $vm.ExtensionData.Guest.ToolsVersion
+    $toolsStatus = $vm.ExtensionData.Guest.ToolsVersionStatus
+    $toolsOutOfDate = if ($toolsStatus -ne "guestToolsCurrent" -and $toolsStatus -ne "guestToolsUnmanaged") { "Out of Date" } else { "Current" }
+    $guestOS = Convert-GuestOSId -GuestId $vm.Guest.GuestId
+    
+    [PSCustomObject]@{
+        'VM Name' = $vm.Name
+        'Datastore' = ($vm | Get-Datastore | Select-Object -First 1).Name
+        'PowerState' = $vm.PowerState
+        'Used Space (GB)' = [Math]::Round($vm.UsedSpaceGB, 2)
+        'NumCpu' = $vm.NumCpu
+        'MemoryGB' = $vm.MemoryGB
+        'NIC Type' = $nicType
+        'VMware Tools Version' = $toolsVersion
+        'Tools Status' = $toolsOutOfDate
+        'Guest OS' = $guestOS
+    }
+}
+
 ### 1 
 write-host "Collecting VM network card type" -ForegroundColor Cyan
-$IntelNICs = get-vm  | get-networkadapter | Where-object {$_.Type -ne 'VMxnet3'} | Select-Object @{E={$_.Parent};Name="VM"}, @{E={$_.Type};Name="Network card type"}
+$IntelNICs = $AllVMs | Get-NetworkAdapter | Where-Object {$_.Type -ne 'VMxnet3'} | Select-Object @{E={$_.Parent};Name="VM"}, @{E={$_.Type};Name="Network card type"}
 
 IF ($IntelNICs.Length -eq 0) {
 
@@ -438,7 +504,7 @@ IF ($IntelNICs.Length -eq 0) {
 
 Else {
 
-    Write-Warning "$($IntelNICs | Measure-Object | Select-object -ExpandProperty Count) VM(s) were found with legacy intel network card types"
+    Write-Warning "$($IntelNICs | Measure-Object | Select-Object -ExpandProperty Count) VM(s) were found with legacy intel network card types"
     $Pre1 = "<H2>WARNING: Intel E1000 legacy network card type VMs detected</H2>"
     #$Pre1 += "<br><br>"
     $IntelNICHTML = $IntelNICs | ConvertTo-HTML -Head $Head -PreContent $Pre1 -As Table | Out-String
@@ -447,7 +513,7 @@ Else {
 
 ### 2 
 write-host "Collecting ESXi power profile" -ForegroundColor Cyan
-### https://www.cloudishes.com/2015/09/automating-esxi-host-power-management.html
+### [https://www.cloudishes.com/2015/09/automating-esxi-host-power-management.html](https://www.cloudishes.com/2015/09/automating-esxi-host-power-management.html)
 $HostPowerPolicy = Get-VMHost | Sort-Object | Select-Object -property Name,
 @{ N="CurrentPolicy"; E={$_.ExtensionData.config.PowerSystemInfo.CurrentPolicy.ShortName}},
 @{ N="CurrentPolicyKey"; E={$_.ExtensionData.config.PowerSystemInfo.CurrentPolicy.Key}},
@@ -471,8 +537,8 @@ else {
 
 }
 
-### 3 - SCSI controller types: https://www.sqlpassion.at/archive/2019/06/10/benchmarking-the-vmware-lsi-logic-sas-against-the-pvscsi-controller/
-$SCSIControllerTypes = Get-VM | Select-Object Name,@{N="Cluster";E={Get-Cluster -VM $_}},@{N="Controller Type";E={Get-ScsiController -VM $_ | Select-Object -ExpandProperty Type}} `
+### 3 - SCSI controller types: [https://www.sqlpassion.at/archive/2019/06/10/benchmarking-the-vmware-lsi-logic-sas-against-the-pvscsi-controller/](https://www.sqlpassion.at/archive/2019/06/10/benchmarking-the-vmware-lsi-logic-sas-against-the-pvscsi-controller/)
+$SCSIControllerTypes = $AllVMs | Select-Object Name,@{N="Cluster";E={Get-Cluster -VM $_}},@{N="Controller Type";E={Get-ScsiController -VM $_ | Select-Object -ExpandProperty Type}} `
 | Where-Object {$_."Controller Type" -eq "VirtualLsiLogicSAS "} | Select-Object @{E={$_.Name};Name="VM"}, "Controller Type"
 
 
@@ -494,8 +560,8 @@ else {
 }
 
 ### 4 - VMware tools version
-$VMWareTools = get-vm | Select-Object Name,@{Name="ToolsVersion";Expression={$_.ExtensionData.Guest.ToolsVersion}},@{Name="ToolsStatus";Expression={$_.ExtensionData.Guest.ToolsVersionStatus}} `
-| Where-object {$_.ToolsStatus -ne "guestToolsCurrent"} | Where-object {$_.ToolsStatus -ne "guestToolsUnmanaged"}
+$VMWareTools = $AllVMs | Select-Object Name,@{Name="ToolsVersion";Expression={$_.ExtensionData.Guest.ToolsVersion}},@{Name="ToolsStatus";Expression={$_.ExtensionData.Guest.ToolsVersionStatus}} `
+| Where-Object {$_.ToolsStatus -ne "guestToolsCurrent"} | Where-Object {$_.ToolsStatus -ne "guestToolsUnmanaged"}
 
 If ($VMWareTools.length -eq 0) {
 
@@ -582,8 +648,8 @@ Else {
 
 write-host "Collecting NTP service config"
 
-$NTP = Get-VMHost | Sort-Object Name | Select-Object Name, @{N=“NTPServiceRunning“;E={($_ | Get-VmHostService | Where-Object {$_.key-eq “ntpd“}).Running}},`
-@{N=“StartupPolicy“;E={($_ | Get-VmHostService | Where-Object {$_.key-eq “ntpd“}).Policy}}, @{N=“NTPServers“;E={$_ | Get-VMHostNtpServer}}, @{N="Date&Time";E={(get-view $_.ExtensionData.configManager.DateTimeSystem).QueryDateTime()}}
+$NTP = Get-VMHost | Sort-Object Name | Select-Object Name, @{N="NTPServiceRunning";E={($_ | Get-VmHostService | Where-Object {$_.key -eq "ntpd"}).Running}},`
+@{N="StartupPolicy";E={($_ | Get-VmHostService | Where-Object {$_.key -eq "ntpd"}).Policy}}, @{N="NTPServers";E={$_ | Get-VMHostNtpServer}}, @{N="Date&Time";E={(Get-View $_.ExtensionData.ConfigManager.DateTimeSystem).QueryDateTime().ToLocalTime()}}
 
 $NTP | Where-Object {$_.NTPServers -notlike "*.ntp.org"} | ForEach-Object {$_ | Add-Member -MemberType NoteProperty -name "NTPServers" -value "Not set to pool.ntp.org" -Force}
 
@@ -609,7 +675,7 @@ Else {
 
 write-host "Collecting VM shell hardware version"
 
-$VMHardwareVersion = Get-VM | Select-Object name, HardwareVErsion | Sort-Object HardwareVersion
+$VMHardwareVersion = $AllVMs | Select-Object Name, HardwareVersion | Sort-Object HardwareVersion
 
 If ($VMHardwareVersion.Length -eq 0) {
 
@@ -638,7 +704,7 @@ ForEach ($i in $ESXihosts) {
 
     write-host "Collecting vCPU to Physical CPU ratio info from $($i.name)"
 
-    $Ratio = (Get-VMHost $i.name | Get-VM | Where-object Name -notlike "vcls*" | Select-Object -expandProperty NumCPU | Measure-Object -sum | Select-Object -ExpandProperty Sum) / $i.NumCpu
+    $Ratio = ($AllVMs | Where-Object {$_.VMHost.Name -eq $i.Name -and $_.Name -notlike "vcls*"} | Select-Object -ExpandProperty NumCPU | Measure-Object -Sum | Select-Object -ExpandProperty Sum) / $i.NumCpu
 
     if ($Ratio -ge 5) {
 
@@ -681,25 +747,15 @@ Else {
 
 ### 9 CPU Ready time
 
-Foreach ($ESXiHost in $ESXiHosts) {    
+$VMCount = ($AllVMs | Measure-Object).Count
+$EstimatedTimeSeconds = [Math]::Round($VMCount * 1.25, 2)
 
-    $VMCount = 0
-    $EstimatedTimeSeconds = 0
+# Convert seconds to TimeSpan
+$timeSpan = [TimeSpan]::FromSeconds($EstimatedTimeSeconds)
 
-    foreach ($ESXiHost in Get-VMHost) {
-        $count = Get-VMHost -Name $ESXiHost.Name | Get-VM | Measure-Object | Select-Object -ExpandProperty Count
-        $VMCount += $count
-        $EstimatedTimeSeconds += [Math]::Round($count * 1.25, 2)
-    }
+Write-Host "Total VMs: $VMCount"
 
-    # Convert seconds to TimeSpan
-    $timeSpan = [TimeSpan]::FromSeconds($EstimatedTimeSeconds)
-
-    Write-Host "Total VMs: $VMCount"
-
-    $EstimatedTime = "{0} hours, {1} minutes, {2} seconds" -f $timeSpan.Hours, $timeSpan.Minutes, $timeSpan.Seconds
-
-    }
+$EstimatedTime = "{0} hours, {1} minutes, {2} seconds" -f $timeSpan.Hours, $timeSpan.Minutes, $timeSpan.Seconds
 
 do {
     Select-CPUReady
@@ -759,22 +815,9 @@ Else {
 
 }
 
-IF ($CPUReadySummary.Length -eq 0) {
-
-    $Pre9 = "<H2>WARNING: CPU Ready time info is not available at this time</H2>"    
-    $CPUReadySummaryHTML = $Pre9
-
-}
-
-Else {
-
-    $Pre9 = "<H2>INFO: ESXi CPU Ready time summary. Higest values are sorted first</H2>"    
-    $CPUReadySummaryHTML = $CPUReadySummary | ConvertTo-HTML -Head $Head -PreContent $Pre9 -As Table | Out-String
-}
-
 ### 10 - Datastores
 
-$DataStores = Get-DataStore | Select-object Name, State, @{E={[Math]::Round($_.CapacityGB,2)};Label="Capacity (GB"}, @{E={[Math]::Round($_.FreeSpaceGB,2)};Label="Free Space (GB)"},`
+$DataStores = Get-DataStore | Select-Object Name, State, @{E={[Math]::Round($_.CapacityGB,2)};Label="Capacity (GB"}, @{E={[Math]::Round($_.FreeSpaceGB,2)};Label="Free Space (GB)"},`
  @{E={$_.Type};Name='File System Type'}, FileSystemVersion | Sort-Object Name
 
 IF ($DataStores.Length -eq 0) {
@@ -794,11 +837,11 @@ Else {
 
 $ScriptEnd = Get-Date
 
-$TotalScriptTime = $ScriptEnd - $ScriptStart | Select-object Hours, Minutes, Seconds
+$TotalScriptTime = $ScriptEnd - $ScriptStart | Select-Object Hours, Minutes, Seconds
 
-$Hours = $TotalScriptTime | Select-object -expand Hours
-$Mins = $TotalScriptTime | Select-object -expand Minutes
-$Seconds = $TotalScriptTime | Select-object -expand Seconds
+$Hours = $TotalScriptTime | Select-Object -expand Hours
+$Mins = $TotalScriptTime | Select-Object -expand Minutes
+$Seconds = $TotalScriptTime | Select-Object -expand Seconds
 
 # Reset the variable to avoid appending to old content
 $PostContent = ""
@@ -810,8 +853,9 @@ $PostContent += "Generated by $($Env:UserName)"
 $PostContent += "<br>"
 $PostContent += "Total processing time: $Hours hours, $Mins minutes, $Seconds seconds</p></b>"
  
+### REMOVED CPU Ready from HTML output - kept in XLS only
 $HTMLReport = ""
-$HTMLReport = ConvertTo-HTML -Body "$ReportTitle $ESXISummaryHTML $ESXIPowerProfile $RatioSummaryHTML $DataStoresHTML $NTPHTML $CPUReadySummaryHTML $IntelNICHTML $SCSIControllerTypesHTML $VMToolsHTML $VMHardwareVersionHTML " -Title "VMware Quick Environmental report" -PostContent $PostContent
+$HTMLReport = ConvertTo-HTML -Body "$ReportTitle $ESXISummaryHTML $ESXIPowerProfile $RatioSummaryHTML $DataStoresHTML $NTPHTML $IntelNICHTML $SCSIControllerTypesHTML $VMToolsHTML $VMHardwareVersionHTML " -Title "VMware Quick Environmental report" -PostContent $PostContent
 
 $HTMLReport | out-file "$CurrentDir\Reports\vSphere_Inventory-$LogTimeStamp.html"
 
@@ -827,6 +871,8 @@ IF (test-path $XLSReport) {
 
 }
 
+### Export All VMs tab first
+
 if ($ESXiSummary.Length -ne 0)  {
     $ESXiSummary | Export-Excel -Path $XLSReport -WorksheetName "ESXi Summary" -AutoSize -AutoFilter
 }
@@ -839,6 +885,11 @@ if ($DataStores.Length -ne 0) {
 if ($HostPowerPolicy.Length -ne 0) {
     $HostPowerPolicy | Export-Excel -Path $XLSReport -WorksheetName "Power Profiles" -AutoSize -AutoFilter
 }
+
+if ($AllVMsDetails.Length -ne 0) {
+    $AllVMsDetails | Export-Excel -Path $XLSReport -WorksheetName "All VMs" -AutoSize -AutoFilter
+}
+
 if ($IntelNICs.Length -ne 0) {
     $IntelNICs | Export-Excel -Path $XLSReport -WorksheetName "Intel E1000 legacy NIC on VMS" -AutoSize -AutoFilter
 }
